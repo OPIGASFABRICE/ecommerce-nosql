@@ -113,8 +113,11 @@ docker compose up -d mongo1   # le nœud revient comme secondaire
 ```
 
 Procédure détaillée et explication du compromis CAP :
-[`report/rapport_projet_nosql.pdf`](report/rapport_projet_nosql.pdf) (section 7).
+[`report/rapport_projet_nosql.pdf`](report/rapport_projet_nosql.pdf) (page 5).
 ## Auteurs
 
-- Binôme : Ange Fabrice OPIGAS/MIDOUMBI NZOGHE Alex Aimé/Biroungou T lilian
+- Groupe (filière M1 SRT) :
+  - Ange Fabrice Otsouandjogo Opoigas
+  - Midoumbi Nzoghe Alex Aimé
+  - Biroungou T Lilian
 - Module : Bases de Données NoSQL
