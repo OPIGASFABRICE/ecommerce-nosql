@@ -89,7 +89,7 @@ ecommerce-nosql/
 │   ├── injection/         # Étape 2 — chargement en masse (bulk/UNWIND/pipeline)
 │   └── api/               # Étape 3 — FastAPI (agrégations, recommandations, rate limiting)
 ├── docs/                  # schéma d'architecture
-└── report/                # rapport complet, guide de soutenance
+└── report/                # rapport complet (rapport_projet_nosql.pdf)
 ```
 
 ## Choix techniques
@@ -101,7 +101,7 @@ ecommerce-nosql/
 | Redis | Sessions TTL, top ventes | Latence quasi nulle, structures natives adaptées au temps réel |
 
 Détails complets (théorème CAP, modélisation, limites identifiées) dans
-[`report/rapport_projet_nosql.docx`](report/rapport_projet_nosql.docx).
+[`report/rapport_projet_nosql.pdf`](report/rapport_projet_nosql.pdf).
 
 ## Test de résilience
 
@@ -113,8 +113,7 @@ docker compose up -d mongo1   # le nœud revient comme secondaire
 ```
 
 Procédure détaillée et explication du compromis CAP :
-[`rapport_projet_nosql.pdf`](rapport_projet_nosql.pdf).
-
+[`report/rapport_projet_nosql.pdf`](report/rapport_projet_nosql.pdf) (section 7).
 ## Auteurs
 
 - Binôme : Ange Fabrice OPIGAS/MIDOUMBI NZOGHE Alex Aimé/Biroungou T lilian
