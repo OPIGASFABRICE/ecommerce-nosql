@@ -1,0 +1,199 @@
+# ===================================================================
+# Infrastructure NoSQL polyglotte - Projet E-Commerce
+# MongoDB Replica Set (3 noeuds) + Neo4j (graphe) + Redis (cache/TTL)
+# ===================================================================
+# Démarrage : docker compose up -d
+# "mongo-setup" initialise le Replica Set puis se termine
+# (Exited (0) = normal, c'est un job one-shot).
+# ===================================================================
+
+networks:
+  nosql-network:
+    driver: bridge
+
+volumes:
+  mongo1_data:
+  mongo2_data:
+  mongo3_data:
+  neo4j_data:
+  redis_data:
+
+services:
+  mongo1:
+    image: mongo:8
+    container_name: mongo1
+    hostname: mongo1
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo1_data:/data/db
+    networks:
+      - nosql-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  mongo2:
+    image: mongo:8
+    container_name: mongo2
+    hostname: mongo2
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo2_data:/data/db
+    networks:
+      - nosql-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  mongo3:
+    image: mongo:8
+    container_name: mongo3
+    hostname: mongo3
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongo3_data:/data/db
+    networks:
+      - nosql-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  mongo-setup:
+    image: mongo:8
+    container_name: mongo-setup
+    depends_on:
+      mongo1:
+        condition: service_healthy
+      mongo2:
+        condition: service_healthy
+      mongo3:
+        condition: service_healthy
+    networks:
+      - nosql-network
+    volumes:
+      - ./mongodb:/scripts:ro
+    entrypoint: ["bash", "/scripts/replica-init.sh"]
+
+  neo4j:
+    image: neo4j:5-community
+    container_name: neo4j
+    ports:
+      - "7474:7474"   # Neo4j Browser
+      - "7687:7687"   # Bolt (driver Python)
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password123}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_memory_pagecache_size=512M
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - nosql-network
+    healthcheck:
+      test: ["CMD", "wget", "-O", "/dev/null", "-q", "http://localhost:7474"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  redis:
+    image: redis:8
+    container_name: redis
+    # Persistance (AOF + RDB) passée directement en ligne de commande
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - nosql-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------
+  # TOOLBOX — exécute les scripts Python (nettoyage/injection) DANS le
+  # réseau Docker, pour pouvoir résoudre mongo1/mongo2/mongo3, neo4j,
+  # redis par leur nom (impossible depuis l'hôte Windows/Mac).
+  #
+  # Usage :
+  #   docker compose build toolbox
+  #   docker compose run --rm toolbox python -m app.injection.sync_pipeline
+  # ------------------------------------------------------------------
+  toolbox:
+    build: .
+    container_name: toolbox
+    volumes:
+      - .:/app
+    environment:
+      - MONGO_URI=mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0
+      - MONGO_DB=ecommerce
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - nosql-network
+    depends_on:
+      - mongo-setup
+      - neo4j
+      - redis
+    profiles: ["tools"]   # ne démarre jamais avec `docker compose up`, seulement via `run`
+
+  # ------------------------------------------------------------------
+  # API — FastAPI (agrégations Mongo, recommandations Neo4j, rate limiting Redis)
+  # ------------------------------------------------------------------
+  api:
+    build: .
+    container_name: api
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - MONGO_URI=mongodb://mongo1:27017,mongo2:27017,mongo3:27017/?replicaSet=rs0
+      - MONGO_DB=ecommerce
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=password123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RATE_LIMIT_PER_MINUTE=60
+    networks:
+      - nosql-network
+    depends_on:
+      - mongo-setup
+      - neo4j
+      - redis
+    restart: unless-stopped

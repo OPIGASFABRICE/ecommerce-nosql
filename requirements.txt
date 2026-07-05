@@ -1,0 +1,10 @@
+pandas>=2.2
+pymongo>=4.7
+neo4j>=5.20
+redis>=5.0
+python-dotenv>=1.0
+
+# API (étape suivante)
+fastapi>=0.111
+uvicorn[standard]>=0.29
+slowapi>=0.1.9
